@@ -1,0 +1,190 @@
+#Version 0.21.1
+#Counter: 1
+#WinCounter: 1
+#Window 1
+#TabInfo
+TabText: Layer 0
+TabRenamed: 0
+TabNumber: 0
+TabsetLayer: 0
+#Control: Window1
+X       : 0
+Y       : 0
+CX      : 400
+CY      : 300
+ControlLayer: 0
+Title   : Tileset Builder
+Class   : Window
+Enabled : 0
+Checked : 0
+Parent  : 
+PClass  : 
+SeqParentName  : 
+SeqParentClass  : 
+SeqChildName  : 
+Visible : 1
+BkColor : 0
+SystemBkColor : BTNFACE
+EnableC : 1
+Style   : 0
+TypStyle: 
+ExStyle : 0
+Local : 1
+LastEditorEvent : 1
+
+#Proc: (General)
+include w32dcore.ew
+
+sequence tile_dib
+sequence tile_data
+integer tile_width,tile_height
+integer total_width,total_height
+tile_width=16
+tile_height=16
+
+function real(sequence string)
+sequence temp
+temp=value(string)
+return temp[2]
+end function
+
+
+tile_dib=loadDib("alex the kid.bmp")
+
+if integer(tile_dib) then
+	-- couldn't load the bitmap
+  puts(1,"could not load tileset")
+  sleep(1)
+end if
+
+procedure load_tiledata(sequence fname)
+
+  integer fn,jj
+  sequence temp
+  fn=open(fname,"r")
+
+  tile_data={}
+  total_width=real(gets(fn))
+  total_height=real(gets(fn))
+  for ii=1 to total_height do
+  	tile_data=append(tile_data,repeat(0,total_width))
+  end for
+
+  for i=1 to total_height do
+  	temp=gets(fn)
+  	jj=1
+  	for j=1 to total_width do
+  	  if temp[jj]='1' then
+  	  	tile_data[i][j]=1
+  	  end if
+      jj+=2	
+  	end for
+  end for
+
+  close(fn)
+end procedure
+
+load_tiledata("alex1.txt")
+
+
+sequence tileset_info,tileset_complet_info
+tileset_info={}
+tileset_complet_info={}
+
+for i=1 to total_height do
+  tileset_complet_info=append(tileset_complet_info,repeat(0,total_width))
+end for
+
+function compare_tiles(sequence temp_tile,sequence test_tile)
+
+  for yy=0 to tile_height-1 do
+  	for xx=0 to tile_width-1 do
+  	  if equal( getDibPixel(temp_tile, xx, yy) , getDibPixel(test_tile, xx, yy) )=0 then
+  	    return 0
+  	  end if
+  	end for
+  end for
+
+  return 1
+end function
+
+procedure insert_tile(sequence temp_dib,sequence data)
+  integer found_match
+  found_match=0
+  for i=1 to length(tileset_info) do
+    if compare_tiles(tileset_info[i][1],temp_dib)=1 then
+      found_match=i
+      exit	
+    end if
+  end for
+
+  if found_match!=0 then--match found
+  	killDib(temp_dib)
+  	tileset_complet_info[ data[1] ][ data[2] ]=found_match
+  else--no match found
+    tileset_info=append(tileset_info,{temp_dib,0})
+    tileset_complet_info[ data[1] ][ data[2] ]=length(tileset_info)
+  end if
+
+end procedure
+
+procedure make_tileset()
+  sequence temp_dib
+  integer xx,yy,result,fn
+  xx=0
+  yy=0
+  for i=1 to total_height do
+  	for j=1 to total_width do
+      if tile_data[i][j]=0 then
+      	temp_dib=newDib(tile_width,tile_height)
+        drawDibToDib(temp_dib, tile_dib, 0, 0, xx, yy, xx+16, yy+16, {}, 255)
+        insert_tile(temp_dib,{i,j})
+      end if
+      xx+=16
+  	end for
+  	yy+=16
+  	xx=0
+  end for
+
+  --?length(tileset_info)
+
+  temp_dib=newDib(tile_width*length(tileset_info),tile_height)
+  for i=1 to length(tileset_info) do
+  	drawDibToDib(temp_dib, tileset_info[i][1], (16*i)-16, 0, 0, 0, 16, 16, {}, 255)
+  end for
+  result = saveDib(temp_dib, "tileset.bmp", 0, 0, tile_width*length(tileset_info), tile_height)
+  killDib(temp_dib)
+
+  for i=1 to length(tileset_info) do
+    result = saveDib(tileset_info[i][1], "tileset\\tile"&sprint(i)&".bmp", 0, 0, tile_width, tile_height)
+  	killDib( tileset_info[i][1] )
+  end for
+
+
+
+  fn=open("data.txt","w")
+  puts(fn,sprint(total_width)&"\n")
+  puts(fn,sprint(total_height)&"\n")
+  for i=1 to total_height do
+  	for j=1 to total_width do
+       puts(fn,sprint( tileset_complet_info[i][j] )&"," )
+  	end for
+  	puts(fn,"\n")
+  end for
+  close(fn)
+end procedure
+
+make_tileset()
+
+
+#EndProc
+
+#Proc: onClose
+procedure Window1_onClose (integer self, integer event, sequence params)--params is ()
+  if sequence(tile_dib) then
+  	killDib(tile_dib)
+  end if
+end procedure
+setHandler( Window1, w32HClose, routine_id("Window1_onClose"))
+#EndProc
+
